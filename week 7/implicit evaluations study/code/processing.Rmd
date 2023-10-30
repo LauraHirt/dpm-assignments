@@ -34,18 +34,19 @@ library(stringr)
 ```{r}
 
 # demographics
-data_demographics_raw <- read_csv("../../../data/AMP study/raw/data_demographics_raw.csv") |>
+data_demographics_raw <- read_csv("/Users/Laui/GitHub/dpm-assignments/week 7/implicit evaluations study/data/raw/data_demographics_raw.csv") |>
   janitor::clean_names()
+
 
 # data_demographics_raw_messy <- read_csv("../../../data/AMP study/raw/data_demographics_raw_messy.csv", skip = 2) |>
 #   janitor::clean_names()
 
 # self report measure
-data_selfreport_raw <- read_csv("../../../data/AMP study/raw/data_selfreport_raw.csv") |>
+data_selfreport_raw <- read_csv("/Users/Laui/GitHub/dpm-assignments/week 7/implicit evaluations study/data/raw/data_selfreport_raw.csv") |>
   janitor::clean_names()
 
 # affect attribution procedure
-data_amp_raw <- read_csv("../../../data/AMP study/raw/data_amp_raw.csv") |>
+data_amp_raw <- read_csv("/Users/Laui/GitHub/dpm-assignments/week 7/implicit evaluations study/data/raw/data_amp_raw.csv") |>
   janitor::clean_names()
 
 ```
@@ -73,7 +74,7 @@ dat_age_gender <- data_demographics_raw |>
 
 # Exclusions / data quality
 
-## AMP
+## AMP  
 
 ```{r}
 
@@ -87,6 +88,35 @@ data_amp_performance_criteria <- data_amp_raw |>
 
 ```
 
+## AMP: "correct number of trials"
+```{r}
+# look at the distribution of the number of trials
+
+data_amp_number_trials <- data_amp_raw %>% 
+  filter(blockcode != "practice", 
+         trialcode != "instructions")
+
+data_amp_number_trials %>%
+  group_by(subject) %>%
+  mutate(trial_count = n()) %>%
+  count(trial_count) %>%
+  table()
+
+# From the distribution of the number of trials it is visible that the "correct" number of trials seems to be 72. One participant had 8 trials, another 144. the remaining 98 participants all performed on 72 trials!
+
+data_amp_number_trials_exclude <- data_amp_raw %>%
+  filter(blockcode != "practice", 
+         trialcode != "instructions") %>%
+  group_by(subject) %>%
+  mutate(trial_count = n()) %>%
+  mutate(exclude_wrong_number_trials = ifelse(trial_count != 72, "exclude", "include"))
+  
+  
+  
+ 
+
+```
+
 # Self-reports
 
 ```{r}
@@ -97,7 +127,10 @@ data_selfreport_trial_level <- data_selfreport_raw |>
   filter(trialcode %in% c("like", "prefer", "positive")) |>
   rename(item = trialcode) |>
   filter(response != "Ctrl+'B'") |>
-  mutate(response = as.numeric(response))
+  mutate(response = as.numeric(response)) %>%
+  group_by(subject) %>%
+  mutate(number_selfreport_items = n()) %>%
+  mutate(exclude_selfreport_trial_level = ifelse(number_selfreport_items < 3, "exclude", "include"))
 
 # mean scored
 data_selfreport_mean_score <- data_selfreport_trial_level |>
@@ -160,7 +193,9 @@ data_processed <- data_processed_before_exclusions |>
                                          is.na(age) ~ "exclude", 
                                          is.na(gender) ~ "exclude",
                                          exclude_amp_performance == "exclude" ~ "exclude",
+                                         exclude_selfreport_trial_level == "exclude" ~ "exclude",
                                          exclude_duplicate_data == "exclude" ~ "exclude",
+                                         exclude_wrong_number_trials == "exclude" ~ "exclude",
                                          TRUE ~ "include"))
 
 ```
