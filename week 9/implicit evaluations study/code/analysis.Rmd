@@ -1,0 +1,265 @@
+---
+title: "Evaluations of positive and negative stimuli using the Affective Misattribution Procedure (AMP) and self-reports"
+subtitle: "Analysis"
+author: "Template: Ian Hussey; content: [Student name]"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    theme: flatly
+    toc: yes
+    toc_float: yes
+---
+
+```{r, include=FALSE}
+
+# set knit options
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+# disable scientific notation
+options(scipen = 999) 
+
+```
+
+# Dependencies
+
+```{r}
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(janitor)
+
+```
+
+# Data
+
+Load the processed data and apply the global exclusions.
+
+```{r}
+
+data_processed <- read_csv("../data/processed/data_processed.csv")
+
+data_processed_after_exclusions <- data_processed |>
+  filter(exclude_participant == "include")
+
+```
+
+# Sample descriptives
+
+## Sample size before exclusions
+
+```{r}
+
+data_processed |>
+  count(name = "n") |>
+  kable() |>
+  add_header_above(header = c("Whole sample" = 1)) |> # note that you can add header rows to tables like this. The "1" indicates the number of columns the header should span. The sum of these numbers must equal the number of columns or you'll get an error.
+  kable_classic(full_width = FALSE)
+
+```
+
+## Sample size after exclusions
+
+Sample used in subsequent analyses
+
+```{r}
+
+data_processed_after_exclusions |>
+  count(name = "n") |>
+  kable() |>
+  add_header_above(header = c("For analysis" = 1)) |>
+  kable_classic(full_width = FALSE)
+
+```
+
+## Age
+
+```{r}
+
+data_processed_after_exclusions |>
+  mutate(age = as.numeric(age)) |>
+  summarise(Mean = mean(age, na.rm = TRUE),
+            SD = sd(age, na.rm = TRUE)) |>
+  mutate_all(.funs = janitor::round_half_up, digits = 1) |>
+  kable() |>
+  add_header_above(header = c("Age" = 2)) |>
+  kable_classic(full_width = FALSE)
+
+```
+
+## Gender
+
+```{r}
+
+data_processed_after_exclusions |> 
+  rename(Gender = gender) |>
+  group_by(Gender) |> 
+  summarise(n = n()) |> 
+  mutate(Percent = paste0(round_half_up((n / sum(n)) * 100, 1), "%")) |>
+  mutate(Gender = stringr::str_to_sentence(Gender)) |> # Change the case of the Gender variable so that it prints nicely
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+# Descriptives
+
+Descriptive statistics and plots of the measures (excluding the demographics variables)
+
+## Self-reported evaluations
+
+### Descriptive stats
+
+```{r}
+
+# overall self-reported evaluations
+dat_mean_ratings <- data_processed_after_exclusions |>
+  summarise(Mean = mean(mean_evaluation, na.rm = TRUE),
+            SD = sd(mean_evaluation, na.rm = TRUE)) |>
+  mutate(group = "Full sample")
+
+# self-reported evaluations by gender category
+dat_mean_ratings_by_gender <- data_processed_after_exclusions |>
+  group_by(group = gender) |>
+  summarise(Mean = mean(mean_evaluation, na.rm = TRUE),
+            SD = sd(mean_evaluation, na.rm = TRUE))
+
+# combine both into one table
+bind_rows(dat_mean_ratings,
+          dat_mean_ratings_by_gender) |>
+  select(Subset = group, Mean, SD) |> # select variables of interest, and rename one 
+  mutate(Subset = stringr::str_to_sentence(Subset)) |> # Change the case of the Subset variable so that it prints nicely
+  mutate_if(is.numeric, round_half_up, digits = 2) |>
+  kable() |>
+  add_header_above(header = c(" " = 1, "Self-reported evaluations" = 2)) |>
+  kable_classic(full_width = FALSE)
+
+```
+
+### Descriptive plots
+
+TODO add descriptive plots for self-reported evaluations
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(mean_evaluation)) +
+  geom_histogram(binwidth = 1,
+                 fill = "white",
+                 colour = "black",
+                 boundary = 0.5) +
+  scale_x_continuous(name = "Self Report",
+                     breaks = c(1,2,3,4,5,6,7))+
+  scale_y_continuous(name = "Frequency",
+                     breaks = c(0,10,20,30,40,50,60,70)) +
+  theme_linedraw()
+
+
+
+```
+
+## AMP evaluations
+
+### Descriptive stats
+
+TODO add descriptive stats for AMP
+
+```{r}
+# Multiple versions
+
+
+# Binwidth = 0.1, starting point not one
+ggplot(data_processed_after_exclusions, aes(AMP_score)) +
+  geom_histogram(binwidth = 0.1,
+                 fill = "white",
+                 colour = "black")
+
+# Binwidth = 0.1, starting point 0
+ggplot(data_processed_after_exclusions, aes(AMP_score)) +
+  geom_histogram(binwidth = 0.1,
+                 fill = "white",
+                 colour = "black",
+                 boundary = 0.05) +
+  xlab("AMP score") +
+  ylab("Frequency") +
+  theme_linedraw()
+
+
+# seperate for gender
+ggplot(data_processed_after_exclusions, aes(AMP_score, fill = gender)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0) +
+  xlab("AMP score") +
+  ylab("Frequency") +
+  theme_linedraw()
+
+```
+
+### Descriptive plots
+
+TODO add descriptive plots for AMP
+
+```{r}
+
+
+```
+
+# Analyses & hypothesis tests
+
+## Correlation self-reported evaluations and evaluation of the AMP
+
+Are the two measures (which should measure the same thing) correlated?
+
+Color the graph meaningfully (inclusive; good looking); Hexadezimalcode
+
+```{r}
+# Raw Data
+ggplot(data_processed_after_exclusions, aes(x= mean_evaluation, y = AMP_score)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm")+
+  theme_bw()
+
+
+# Jitter 
+ggplot(data_processed_after_exclusions, aes(x= mean_evaluation, y = AMP_score)) +
+  geom_point(size = 2, position = "jitter") +
+  geom_smooth(method = "lm")
+
+
+# seperate for gender
+ggplot(data_processed_after_exclusions, aes(x = mean_evaluation, y = AMP_score, fill = gender)) +
+  geom_point(size = 2, position = "jitter") +
+  geom_smooth(method = "lm")
+
+```
+
+The two measures are not correlated. The AMP is not a good measure.
+
+## Self-reported evalautions
+
+TODO add t test comparing self-reported evaluations between men and women
+
+```{r}
+
+
+
+```
+
+## Evaluations on the Affect Misattribution Procedure
+
+TODO add t test comparing AMP evaluations between men and women
+
+```{r}
+
+
+
+```
+
+# Session info
+
+```{r}
+
+sessionInfo()
+
+```
