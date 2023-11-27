@@ -34,12 +34,18 @@ library(janitor)
 library(scales)
 library(ggExtra)
 library(ggrepel)
-install.packages("remotes")
 remotes::install_github("hughjonesd/ggmagnify")
 library(ggmagnify)
 library(ggplot2)
- 
-
+library(devtools)
+devtools::install_github("psyteachr/introdataviz")
+library(introdataviz)
+library(survival)
+library(lattice)
+library(Hmisc)
+library(report)
+devtools::install_github("thomasp85/patchwork")
+library(patchwork)
 ```
 
 # Data
@@ -174,12 +180,30 @@ ggplot(data_processed_after_exclusions, aes(x = mean_evaluation)) +
 \TODO add table of means, SDs, Ns
 
 ```{r}
-# overall AMP evaluations
-dat_mean_AMP <- data_processed_after_exclusions |>
+
+# overall AMP score
+dat_AMP_score <- data_processed_after_exclusions |>
   summarise(Mean = mean(AMP_score, na.rm = TRUE),
             SD = sd(AMP_score, na.rm = TRUE),
             n = n()) |>
   mutate(group = "Full sample")
+
+# AMP score by gender category
+dat_AMP_score_by_gender <- data_processed_after_exclusions |>
+  group_by(group = gender) |>
+  summarise(Mean = mean(AMP_score, na.rm = TRUE),
+            SD = sd(AMP_score, na.rm = TRUE),
+            n = n())
+
+# combine both into one table
+bind_rows(dat_AMP_score,
+          dat_AMP_score_by_gender) |>
+  select(Subset = group, Mean, SD, n) |> # select variables of interest, and rename one 
+  mutate(Subset = stringr::str_to_sentence(Subset)) |> # Change the case of the Subset variable so that it prints nicely
+  mutate_if(is.numeric, round_half_up, digits = 2) |>
+  kable() |>
+  add_header_above(header = c(" " = 1, "AMP score" = 3)) |>
+  kable_classic(full_width = FALSE)
 
 ```
 
@@ -196,7 +220,6 @@ ggplot(data_processed_after_exclusions, aes(x = AMP_score)) +
   ylab("Frequency") +
   theme_linedraw() +
   scale_x_continuous(breaks = pretty_breaks(n = 10))
-
 
 
 
@@ -221,23 +244,24 @@ ggplot(data_processed_after_exclusions, aes(AMP_score)) +
 
 
 # seperate for gender
-ggplot(data_processed_after_exclusions, aes(AMP_score, fill = gender)) +
+p1 <- ggplot(data_processed_after_exclusions, aes(AMP_score, fill = gender)) +
   geom_histogram(binwidth = 0.1,
-                 boundary = 0) +
+                 boundary = 0,
+                 colour = "black") +
   xlab("AMP score") +
   ylab("Frequency") +
   theme_linedraw()
-
+p1
 ```
 
 # Analyses & hypothesis tests
 
-## Self-reported evaluations are correlated with evaluations on the AMP
+## Hypothesis 1: Self-reported evaluations are correlated with evaluations on the AMP
 
 ### Plot
 
 ```{r}
-
+# Self-reported evaluation as dependent variable
 ggplot(data_processed_after_exclusions, 
        aes(x = AMP_score,
            y = mean_evaluation)) +
@@ -249,6 +273,7 @@ ggplot(data_processed_after_exclusions,
   ylab("Mean self-reported evaluation") +
   theme_linedraw() 
 
+# AMP score as dependent variable
 ggplot(data_processed_after_exclusions, 
        aes(y = AMP_score,
            x = mean_evaluation)) +
@@ -293,7 +318,7 @@ Axial_histogram <- ggplot(data_processed_after_exclusions,
 ggMarginal(Axial_histogram, type = "histogram")
 
 
-# Grouped by gender
+# Grouped by gender and legend
 
 Axial_histogram_gender <- ggplot(data_processed_after_exclusions,
               aes(x = AMP_score,
@@ -301,7 +326,8 @@ Axial_histogram_gender <- ggplot(data_processed_after_exclusions,
                   colour = gender)) +
   geom_point() +
   scale_colour_discrete(name = "gender",
-                      labels = c("female", "male","non-binary"))
+                      labels = c("female", "male","non-binary")) +
+  theme(legend.position = c(.15,.7))
 
 
 ggMarginal(Axial_histogram_gender, type = "density", groupColour = TRUE, groupFill = TRUE)
@@ -313,8 +339,9 @@ Label points using ggrepel: <https://cran.r-project.org/web/packages/ggrepel/vig
 
 \TODO Label the points in a scatter plot using their participant codes.
 
-```{r}
+Plot with labels for all participants
 
+```{r}
 Axial_histogram <- ggplot(data_processed_after_exclusions, 
        aes(x = AMP_score,
            y = mean_evaluation,
@@ -327,26 +354,81 @@ Axial_histogram <- ggplot(data_processed_after_exclusions,
 
 labeled_scatter_plot <- Axial_histogram + geom_text_repel()
 Axial_histogram + geom_text_repel()
+
 ```
 
-#### Magnify areas
-
-Magnify areas of your plot with ggmagnify: <https://hughjonesd.github.io/ggmagnify/>
-
-\TODO Magnify an area of one of your scatter plots, eg where there are a lot of data points in a small area.
+As this plot is very messy, I only label the participants with outliers in one or both variables in a second graph. Outliers are defined using the interquartile range.
 
 ```{r}
+# AMP_score
+Q1_AMP_score <- quantile(data_processed_after_exclusions$AMP_score, 0.25)
+Q3_AMP_score <- quantile(data_processed_after_exclusions$AMP_score, 0.75)
+IQR_AMP_score <- Q3_AMP_score - Q1_AMP_score
+
+# Define upper and lower bounds
+upper_bound_AMP_score <- Q3_AMP_score + 1.5 * IQR_AMP_score
+lower_bound_AMP_score <- Q1_AMP_score - 1.5 * IQR_AMP_score
+
+# Identify potential outliers
+outliers_AMP_score <- data.frame(data_processed_after_exclusions %>%
+  mutate(outliers_AMP_score = ifelse(AMP_score > upper_bound_AMP_score |
+                            AMP_score < lower_bound_AMP_score,
+                          "outlier", "non outlier")))
+
+
+
+# mean_evaluation
+Q1_mean_evaluation <- quantile(data_processed_after_exclusions$mean_evaluation, 0.25)
+Q3_mean_evaluation <- quantile(data_processed_after_exclusions$mean_evaluation, 0.75)
+IQR_mean_evaluation <- Q3_mean_evaluation - Q1_mean_evaluation
+
+# Define upper and lower bounds
+upper_bound_mean_evaluation <- Q3_mean_evaluation + 1.5 * IQR_mean_evaluation
+lower_bound_mean_evaluation <- Q1_mean_evaluation - 1.5 * IQR_mean_evaluation
+
+# Identify potential outliers
+outliers_mean_evaluation <- data.frame(data_processed_after_exclusions %>%
+  mutate(outliers_mean_evaluation = ifelse(mean_evaluation > upper_bound_mean_evaluation |
+                            mean_evaluation < lower_bound_mean_evaluation,
+                          "outlier", "non outlier")))
+
+# combine dataframes by subject
+data_processed_outliers <- data_processed_after_exclusions %>%
+  full_join(outliers_AMP_score, by = "subject") %>% 
+  full_join(outliers_mean_evaluation, by = "subject")
+
+# as character
+data_processed_outliers$outliers_AMP_score <- as.character(data_processed_outliers$outliers_AMP_score)
+data_processed_outliers$outliers_mean_evaluation<- as.character(data_processed_outliers$outliers_mean_evaluation)
+
+
+labels <-  data_processed_outliers %>%
+  filter(outliers_AMP_score == "outlier" | outliers_mean_evaluation == "outlier")
+
+
 
 Axial_histogram <- ggplot(data_processed_after_exclusions, 
        aes(x = AMP_score,
-           y = mean_evaluation) +
+           y = mean_evaluation,
+           label = subject)) +
   geom_jitter(color = viridis_pal(begin = 0.45, option = "mako")(1),
               alpha = 0.5) +
   xlab("AMP score") +
   ylab("Mean self-reported evaluation") +
   theme_linedraw() 
 
-Axial_histogram
+
+labeled_scatter_plot_outliers <- Axial_histogram + geom_text_repel(data = labels)
+Axial_histogram + geom_text_repel(data = labels)
+```
+
+#### Magnify areas
+
+Magnify areas of your plot with ggmagnify: <https://hughjonesd.github.io/ggmagnify/>
+
+\TODO Magnify an area of one of your scatter plots, e.g., where there are a lot of data points in a small area.
+
+```{r}
 
 from <- c(xmin = 0.45, xmax = 0.68, ymin = 0.85, ymax = 1.31)
 # Names xmin, xmax, ymin, ymax are optional:
@@ -359,17 +441,31 @@ Axial_histogram + geom_magnify(from = from, to = to,
 
 ### Test
 
-\TODO
+\TODO run an appropriate test. Below the output, interpret the results: write a few sentences that report and interpret
 
-## Self-reported evaluations differ between men and women
+To test if the self-reported evaluations are correlated with evaluations in the AMP score, I calculated a Pearson correlation. The Pearson correlation coefficient (r) is a statistic that determines how closely two variables are related. Its value ranges from -1 to +1, with 0 denoting no linear correlation, -1 denoting a perfect negative linear correlation, and +1 denoting a perfect positive linear correlation. A correlation between variables means that as one variable's value changes, the other tends to change in the same way. It is important to remember that a correlation is no indicator of causality, as the variables are treated equal!
+
+```{r}
+correlation_H1 <- cor(data_processed_after_exclusions$mean_evaluation,
+                      data_processed_after_exclusions$AMP_score,
+                      method = "pearson")
+
+```
+
+**Interpretation:**
+
+The pearson correlation yields a value of -0.124. As this is a negative sign, it indicates that the two variables correlate negatively with each other. This means that when one variable changes, the other variable changes in the opposite direction. When people report increasing self-reported evaluations, then their evaluation on the AMP tends to decrease. This is against our initial assumptions. The strength of this correlation is to be classified as only weak (0 to -.3) and almost negligiable.
+
+## Hypothesis 2: Self-reported evaluations differ between men and women
 
 ### Plot
 
 \TODO split histogram, split violin plot, raincloud plot, etc.
 
-```{r}
-# Split histogram
+Split histogram plot (for all genders)
 
+```{r}
+# All in one histogram ("stacked")
 ggplot(data_processed_after_exclusions, aes(x = mean_evaluation)) +
   geom_histogram(aes(fill = gender),
                  binwidth = 1,
@@ -383,21 +479,162 @@ ggplot(data_processed_after_exclusions, aes(x = mean_evaluation)) +
   theme(panel.grid.minor = element_blank())
 
 
+# All in one histogram ("dodged")
+
+ggplot(data_processed_after_exclusions, aes(x = mean_evaluation,
+                                            group = gender,
+                                            fill = gender))+
+  geom_histogram(position="dodge",binwidth=0.4) + 
+  theme_bw()
 
 
+# Separate histograms next to eachother
+
+ggplot(data_processed_after_exclusions, aes(x = mean_evaluation)) + 
+  geom_histogram() + 
+  facet_grid(~gender) + 
+  theme_bw()
+
+```
+
+Split histogram plot (only men and women)
+
+```{r}
+# Data without nonbinary
+data_processed_after_exclusions_H2 <- data_processed_after_exclusions %>%
+  filter(gender != "nonbinary")
+
+# All in one histogram ("stacked")
+ggplot(data_processed_after_exclusions_H2, aes(x = mean_evaluation)) +
+  geom_histogram(aes(fill = gender),
+                 binwidth = 1,
+                 boundary = 0,
+                 color = "black") + 
+  xlab("Mean self-reported evaluation") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 7)) +
+  coord_cartesian(xlim = c(1, 7)) +
+  theme(panel.grid.minor = element_blank())
+
+
+# All in one histogram ("dodged")
+
+ggplot(data_processed_after_exclusions_H2, aes(x = mean_evaluation,
+                                            group = gender,
+                                            fill = gender))+
+  geom_histogram(position="dodge",binwidth=0.4) + 
+  theme_bw()
+
+
+# Separate histograms next to eachother
+
+ggplot(data_processed_after_exclusions_H2, aes(x = mean_evaluation)) + 
+  geom_histogram() + 
+  facet_grid(~gender) + 
+  theme_bw()
+
+```
+
+Split violin plot (seperate for all genders)
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = gender, y = mean_evaluation,
+                                            fill = gender)) +
+  introdataviz::geom_split_violin(alpha = .4, trim = FALSE) +
+  geom_boxplot(width = .2, alpha = .6, fatten = NULL, show.legend = FALSE) +
+  stat_summary(fun.data = "mean_se", geom = "pointrange", show.legend = F, 
+               position = position_dodge(.175)) +
+  scale_x_discrete(name = "Gender", labels = c("female", "male", "nonbinary")) +
+  scale_y_continuous(name = "self-reported evaluations",
+                     breaks = seq(0, 7, 1), 
+                     limits = c(0, 7)) +
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  theme_minimal()
+
+
+```
+
+Split violin plot (only men and women)
+
+```{r}
+ggplot(data_processed_after_exclusions_H2, aes(x ="", y = mean_evaluation,
+                                            fill = gender)) +
+  introdataviz::geom_split_violin(alpha = .4, trim = FALSE) +
+  geom_boxplot(width = .2, alpha = .6, fatten = NULL, show.legend = FALSE) +
+  stat_summary(fun.data = "mean_se", geom = "pointrange", show.legend = F, 
+               position = position_dodge(.175)) +
+  scale_y_continuous(name = "self-reported evaluations",
+                     breaks = seq(0, 7, 1), 
+                     limits = c(0, 7)) +
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  theme_minimal()
+
+```
+
+Split raincloud plot (only men and women)
+
+```{r}
+rain_height <- .1
+
+ggplot(data_processed_after_exclusions_H2, aes(x = "", y = mean_evaluation,
+                                               fill = gender)) +
+  # clouds
+  introdataviz::geom_flat_violin(trim=FALSE, alpha = 0.4,
+    position = position_nudge(x = rain_height+.05)) +
+  # rain
+  geom_point(aes(colour = gender), size = 2, alpha = .5, show.legend = FALSE, 
+              position = position_jitter(width = rain_height, height = 0)) +
+  # boxplots
+  geom_boxplot(width = rain_height, alpha = 0.4, show.legend = FALSE, 
+               outlier.shape = NA,
+               position = position_nudge(x = -rain_height*2)) +
+  # mean and SE point in the cloud
+  stat_summary(fun.data = mean_cl_normal, mapping = aes(color = gender), show.legend = FALSE,
+               position = position_nudge(x = rain_height * 3)) +
+  # adjust layout
+  scale_x_discrete(name = "", expand = c(rain_height*3, 0, 0, 0.7)) +
+  scale_y_continuous(name = "mean self-reported evaluation",
+                     breaks = seq(0, 7, 1), 
+                     limits = c(0, 7)) +
+  coord_flip() +
+  facet_wrap(~factor(gender, 
+                     levels = c("male", "female"), 
+                     labels = c("male", "female")), 
+             nrow = 2) +
+  # custom colours and theme
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = c(0.8, 0.8),
+        legend.background = element_rect(fill = "white", color = "white"))
 ```
 
 ### Test
 
 \TODO
 
+As a test statistic, I use the unpaired two-samples t-test to compare the mean self-reported evaluation of the two independent groups (men and women). I chose to test two-sided, as there is no indication why one sex should achieve higher values than the other; no directional hypothesis exists.
+
 ```{r}
-
-
+t.test(data_processed_after_exclusions_H2$mean_evaluation~data_processed_after_exclusions_H2$gender,
+       var.equal = TRUE,
+       alternative = "two.sided")
 
 ```
 
-## Evaluations on the Affect Misattribution Procedure differ between men and women
+**Interpretation:**
+
+The t-test consists of the following two hypothesis:
+
+-   **Null hypothesis (H0):** The means for the two populations are equal.
+
+-   **Alternative hypothesis (H1) :** The means for the two populations are not equal.
+
+As the p-value (0.014) is less than our specified significance level (0.05), we can reject the null hypothesis. This means that the difference between the two means is statistically significant. The sample provides strong enough evidence to conclude that the two population means are not equal. Men and women differ statistically significant in their mean self-reported evaluation. This is further shown in the fact that the 95% confidence interval does not contain 0. The mean self-reported evaluation of men (1.81) is significantly higher than the mean self-reported evaluation of women (1.32).
+
+## Hypothesis 3: Evaluations on the Affect Misattribution Procedure differ between men and women
 
 ### Plot
 
@@ -405,19 +642,138 @@ ggplot(data_processed_after_exclusions, aes(x = mean_evaluation)) +
 
 This time, vary the labeling and order of the legend, e.g., capitalise "Men" and "Women", and know how to change the order of the factors.
 
-```{r}
+Split histogram plot (only men and women)
 
+```{r}
+# Data without nonbinary
+data_processed_after_exclusions_H3 <- data_processed_after_exclusions %>%
+  filter(gender != "nonbinary")
+
+
+# All in one histogram ("stacked")
+ggplot(data_processed_after_exclusions_H3, aes(x = AMP_score)) +
+  geom_histogram(aes(fill = gender),
+                 binwidth = 0.1,
+                 boundary = 0,
+                 color = "black") + 
+  xlab("Mean AMP score") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  coord_cartesian(xlim = c(0, 1)) +
+  theme(panel.grid.minor = element_blank())
+
+
+# All in one histogram ("dodged")
+
+ggplot(data_processed_after_exclusions_H3, aes(x = AMP_score,
+                                            group = gender,
+                                            fill = gender))+
+  geom_histogram(position="dodge",binwidth=0.1) + 
+  theme_bw()
+
+
+# Separate histograms next to eachother
+
+ggplot(data_processed_after_exclusions_H3, aes(x = AMP_score)) + 
+  geom_histogram() + 
+  facet_grid(~gender) + 
+  theme_bw()
+
+
+
+```
+
+Split violin plot (only men and women)
+
+```{r}
+p2 <- ggplot(data_processed_after_exclusions_H3, aes(x ="", y = AMP_score,
+                                            fill = gender)) +
+  introdataviz::geom_split_violin(alpha = .4, trim = FALSE) +
+  geom_boxplot(width = .2, alpha = .6, fatten = NULL, show.legend = FALSE) +
+  stat_summary(fun.data = "mean_se", geom = "pointrange", show.legend = F, 
+               position = position_dodge(.175)) +
+  scale_y_continuous(name = "mean AMP score",
+                     breaks = seq(0, 1, 0.100), 
+                     limits = c(0, 1)) +
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  theme_minimal()
+
+p2
+```
+
+Split raincloud plot (only men and women)
+
+```{r}
+rain_height <- .1
+
+p3 <- ggplot(data_processed_after_exclusions_H3, aes(x = "", y = AMP_score,
+                                               fill = gender)) +
+  # clouds
+  introdataviz::geom_flat_violin(trim=FALSE, alpha = 0.4,
+    position = position_nudge(x = rain_height+.05)) +
+  # rain
+  geom_point(aes(colour = gender), size = 2, alpha = .5, show.legend = FALSE, 
+              position = position_jitter(width = rain_height, height = 0)) +
+  # boxplots
+  geom_boxplot(width = rain_height, alpha = 0.4, show.legend = FALSE, 
+               outlier.shape = NA,
+               position = position_nudge(x = -rain_height*2)) +
+  # mean and SE point in the cloud
+  stat_summary(fun.data = mean_cl_normal, mapping = aes(color = gender), show.legend = FALSE,
+               position = position_nudge(x = rain_height * 3)) +
+  # adjust layout
+  scale_x_discrete(name = "", expand = c(rain_height*3, 0, 0, 0.7)) +
+  scale_y_continuous(name = "mean AMP score",
+                     breaks = seq(0, 1, 0.100), 
+                     limits = c(0, 1)) +
+  coord_flip() +
+  facet_wrap(~factor(gender, 
+                     levels = c("Male", "Female"), 
+                     labels = c("Male", "Female")), 
+             nrow = 2) +
+  # custom colours and theme
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = c(0.8, 0.8),
+        legend.background = element_rect(fill = "white", color = "white"))
+
+p3
 
 
 ```
 
 ### Test
 
-\TODO
+\TODO run an appropriate test. Below the output, print an interpretation of the results generated by the "easystats" package
+
+<https://easystats.github.io/report/>)
+
+As a test statistic, I use the unpaired two-samples t-test to compare the mean AMP score of the two independent groups (men and women). I chose to test two-sided, as there is no indication why one sex should achieve higher values than the other; no directional hypothesis exists.
 
 ```{r}
+t.test(data_processed_after_exclusions_H3$AMP_score~data_processed_after_exclusions_H2$gender,
+       var.equal = TRUE,
+       alternative = "two.sided")
 
+```
 
+**Interpretation:**
+
+The t-test consists of the following two hypothesis:
+
+-   **Null hypothesis (H0):** The means for the two populations are equal.
+
+-   **Alternative hypothesis (H1) :** The means for the two populations are not equal.
+
+As the p-value (0.94) is greater than our specified significance level (0.05), we can't reject the null hypothesis. This means that the difference between the two means is not statistically significant. The sample does not provide strong enough evidence to conclude that the two population means are not equal. Men and women do not differ statistically significant in their mean AMP score. This is further shown in the fact that the 95% confidence interval does contain 0. The mean AMP score of women (0.585) is not significantly higher than the mean AMP score of men (0.582).
+
+```{r}
+report(t.test(data_processed_after_exclusions_H3$AMP_score ~ data_processed_after_exclusions_H3$gender,
+       var.equal = TRUE,
+       alternative = "two.sided"))
 
 ```
 
@@ -428,9 +784,9 @@ Combine plots using patchwork: <https://patchwork.data-imaginist.com/>
 \TODO Combine at least three of the above plots into one.
 
 ```{r}
-
-
-
+combined_AMP <- (p1 | p2) /
+      p3
+combined_AMP
 ```
 
 ## Saving plots
@@ -440,12 +796,16 @@ Save plots to disk with `ggsave()`
 \TODO Save the above combined plot to disk as both .png and .pdf. Ensure the png has at least 300dpi resolution.
 
 ```{r}
+ggsave("combined_AMP.pdf")
+ggsave("combined_AMP.png")
 
 
 
 ```
 
 # Session info
+
+It tells everything about the instances of r that created this work. Useful for recreation of the code and the results. There is reproducability over time. Prints at the end of the HTML file.
 
 ```{r}
 
