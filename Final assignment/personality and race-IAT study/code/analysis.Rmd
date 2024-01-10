@@ -1,0 +1,552 @@
+---
+title: "Examining the relationship between the big-5 personality facets and implicit racial attitudes"
+subtitle: "Data analysis"
+author: "Template: Laura Hirt; content: Laura Hirt"
+date: "2023-12-19"
+output:
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    theme: flatly
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dependencies
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(janitor)
+library(scales)
+library(ggExtra)
+library(ggplot2)
+library(devtools)
+library(report)
+devtools::install_github("thomasp85/patchwork")
+library(patchwork)
+library(psych)
+library(stats)
+```
+
+# Data
+
+Loading of the processed data and application of the global exclusion variable.
+
+```{r}
+# loading of the processed data
+data_processed <- read_csv("../data/processed/data_processed.csv")
+
+# application of global exclusions
+data_processed_after_exclusions <- data_processed %>%
+  filter(exclude_participant == "include")
+```
+
+# Sample descriptions
+
+## Sample size before exclusions
+
+```{r}
+data_processed %>%
+  count(name = "n") %>%
+  kable() %>%
+  add_header_above(header = c("Sample (before exclusions)" = 1)) %>% 
+  kable_classic(full_width = FALSE)
+```
+
+## Sample size after exclusions
+
+This is the sample used in all subsequent analyses.
+
+```{r}
+data_processed_after_exclusions %>%
+  count(name = "n") %>%
+  kable() %>%
+  add_header_above(header = c("Sample (after exclusions)" = 1)) %>%
+  kable_classic(full_width = FALSE)
+```
+
+## Demographic description: age
+
+```{r}
+data_processed_after_exclusions %>%
+  mutate(age = as.numeric(age)) %>%
+  summarise(Mean = mean(age, na.rm = TRUE),
+            SD = sd(age, na.rm = TRUE)) %>%
+  mutate_all(.funs = janitor::round_half_up, digits = 1) %>%
+  kable() %>%
+  add_header_above(header = c("Age" = 2)) %>%
+  kable_classic(full_width = FALSE)
+
+data_processed_after_exclusions %>%
+  mutate(age = as.numeric(age)) %>%
+  summarise(Total_Participants = n(),
+            Age_Available = sum(!is.na(age)),
+            Proportion_Age_Available = Age_Available / Total_Participants) %>%
+  mutate_all(.funs = janitor::round_half_up, digits = 1) %>%
+  kable() %>%
+  add_header_above(header = c("Age" = 3)) %>%
+  kable_classic(full_width = FALSE)
+
+```
+
+**Interpretation:**
+
+The mean age of the participants was 30.6 years with a standard deviation of 11.3 years. Of the total of 161 participants, the age of 139 participants (90%) is known.
+
+## Demographic description: gender
+
+```{r}
+
+data_processed_after_exclusions %>% 
+  rename(Gender = gender) %>%
+  group_by(Gender) %>% 
+  summarise(n = n()) %>% 
+  mutate(Percent = paste0(round_half_up((n / sum(n)) * 100, 1), "%")) %>%
+  mutate(Gender = stringr::str_to_sentence(Gender)) %>%
+  kable() %>%
+  kable_classic(full_width = FALSE)
+```
+
+**Interpretation:**
+
+Of the total of 161 participants, 86 participants (53.4%) were women, 53 participants (32.9%) were men, and for 22 participants (13.7%), there is no information available on their gender.
+
+# BFI
+
+## Cronbach's Alpha for each BFI subscale
+
+Cronbach's alpha is a test used to measure the degree of agreement (internal consistency) between the items of the different subscales of the BFI.
+
+### Extroversion
+
+```{r}
+psych::alpha(subset(data_processed_after_exclusions, select = c(bfi_e1, bfi_e2, bfi_e3, bfi_e4, bfi_e5, bfi_e6, bfi_e7, bfi_e8)))
+
+```
+
+**Interpretation:**
+
+As the eight items all have the same value range, the value can be read under "raw_alpha", which is 0.82. A value of 0.82 is a very good value. The eight items show a sufficiently high inter-item correlation.The 95% confidence values, which are shown as 0.77 and 0.86 for lower and upper respectively, can also be important. Even the lower limit of the CI still has an acceptable value.
+
+### Agreeableness
+
+```{r}
+psych::alpha(subset(data_processed_after_exclusions, select = c(bfi_a1, bfi_a2, bfi_a3, bfi_a4, bfi_a5, bfi_a6, bfi_a7, bfi_a8, bfi_a9)))
+```
+
+**Interpretation:**
+
+As the nine items all have the same value range, the value can be read under "raw_alpha", which is 0.78. A value of 0.78 is considered an acceptable value . The nine items show a sufficiently high inter-item correlation.The 95% confidence values, which are shown as 0.73 and 0.83 for lower and upper respectively, can also be important. Even the lower limit of the CI still has an acceptable value, so nothing has to be done.
+
+### Openness
+
+```{r}
+psych::alpha(subset(data_processed_after_exclusions, select = c(bfi_o1, bfi_o2, bfi_o3, bfi_o4, bfi_o5, bfi_o6, bfi_o7, bfi_o8, bfi_o9, bfi_o10)))
+```
+
+**Interpretation:**
+
+As the ten items all have the same value range, the value can be read under "raw_alpha", which is 0.81. A value of 0.81 is a very good value. The ten items show a sufficiently high inter-item correlation.The 95% confidence values, which are shown as 0.76 and 0.85 for lower and upper respectively, can also be important. Even the lower limit of the CI still has an acceptable value.
+
+### Conscientiousness
+
+```{r}
+psych::alpha(subset(data_processed_after_exclusions, select = c(bfi_c1, bfi_c2, bfi_c3, bfi_c4, bfi_c5, bfi_c6, bfi_c7, bfi_c8, bfi_c9)))
+```
+
+**Interpretation:**
+
+As the nine items all have the same value range, the value can be read under "raw_alpha", which is 0.81. A value of 0.81 is a very good value. The nine items show a sufficiently high inter-item correlation.The 95% confidence values, which are shown as 0.76 and 0.85 for lower and upper respectively, can also be important. Even the lower limit of the CI still has an acceptable value.
+
+### Neuroticism
+
+```{r}
+psych::alpha(subset(data_processed_after_exclusions, select = c(bfi_n1, bfi_n2, bfi_n3, bfi_n4, bfi_n5, bfi_n6, bfi_n7, bfi_n8)))
+```
+
+**Interpretation:**
+
+As the eight items all have the same value range, the value can be read under "raw_alpha", which is 0.78. A value of 0.78 is considered an acceptable value . The eight items show a sufficiently high inter-item correlation.The 95% confidence values, which are shown as 0.72 and 0.83 for lower and upper respectively, can also be important. Even the lower limit of the CI still has an acceptable value, so nothing has to be done.
+
+# Descriptive plots
+
+## Distribution of scores on the BFI sub-scales
+
+The distribution of the participants' average values for each of the BFI sub-scales is shown below in the form of histograms. In each sub-scale, participants' mean score can take on values between 1 and 6.
+
+### Distribution of scores: Extroversion scale
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = mean_extroversion)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("Mean extroversion") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 6)) +
+  coord_cartesian(xlim = c(1, 6)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+### Distribution of scores: Agreeableness scale
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = mean_agreeableness)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("Mean agreeableness") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 6)) +
+  coord_cartesian(xlim = c(1, 6)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+### Distribution of scores: Openness scale
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = mean_openness)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("Mean openness") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 6)) +
+  coord_cartesian(xlim = c(1, 6)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+### Distribution of scores: Conscientiousness scale
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = mean_conscientiousness)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("Mean conscientiousness") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 6)) +
+  coord_cartesian(xlim = c(1, 6)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+### Distribution of scores: Neuroticism scale
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = mean_neuroticism)) +
+  geom_histogram(binwidth = 0.1,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("Mean neuroticism") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 6)) +
+  coord_cartesian(xlim = c(1, 6)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+## Distribution of scores on the IAT
+
+The distribution of the participants' D score on the IAT is shown below in the form of a histograms. The D score can range between -2 and +2.
+
+```{r}
+ggplot(data_processed_after_exclusions, aes(x = D)) +
+  geom_histogram(binwidth = 0.05,
+                 boundary = 0,
+                 fill = viridis_pal(begin = 0.45, option = "mako")(1), 
+                 color = viridis_pal(begin = 0.30, option = "mako")(1)) + 
+  xlab("IAT D score") +
+  ylab("Frequency") +
+  theme_linedraw() +
+  scale_x_continuous(breaks = pretty_breaks(n = 5)) +
+  coord_cartesian(xlim = c(-2, 2)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+# Correlation IAT and BFI sub-scales
+
+To test if personality traits are correlated with implicit racial stereotypes, a correlation matrix of the Pearson's r correlations between the IAT and the BFI sub-scales is created. The Pearson correlation coefficient (r) is a statistic that determines how closely two variables are related. Its value ranges from -1 to +1, with 0 denoting no linear correlation, -1 denoting a perfect negative linear correlation, and +1 denoting a perfect positive linear correlation. A correlation between variables means that as one variable's value changes, the other tends to change in the same way.
+
+```{r}
+correlation_IAT_BFI <- data_processed_after_exclusions %>%
+  select(mean_extroversion, mean_agreeableness, mean_openness, mean_conscientiousness, mean_neuroticism) %>%
+  sapply(function(x) cor(data_processed_after_exclusions$D, x, use = "complete.obs")) %>%
+  round(2) %>%
+  as.data.frame() %>%
+  t() %>%
+  `rownames<-`(., c("D")) %>%
+  t() %>%
+  kable(caption = "Pearson's r Correlations Between D and BFI Subscales")
+
+correlation_IAT_BFI
+```
+
+# Hypothesis 1: Scores on the IAT differ between men and women
+
+To test the hypothesis that men and women differ on their scores on the IAT, a t-test is run.
+
+```{r}
+# Filter men and women
+data_processed_after_exclusions_H1 <- data_processed_after_exclusions %>%
+  filter(gender != "other/missing/error")
+
+
+report(t.test(data_processed_after_exclusions_H1$D ~ data_processed_after_exclusions_H1$gender,
+       var.equal = TRUE,
+       alternative = "two.sided"))
+```
+
+**Interpretation:**
+
+The t-test consists of the following two hypothesis:
+
+-   **Null hypothesis (H0):** The means for the two populations are equal.
+
+-   **Alternative hypothesis (H1) :** The means for the two populations are not equal.
+
+As the p-value (0.443) is greater than our specified significance level (0.05), we can't reject the null hypothesis. This means that the difference between the two means is not statistically significant. The sample does not provide strong enough evidence to conclude that the two population means are not equal. Men and women do not differ statistically significant in their mean IAT score. This is further shown in the fact that the 95% confidence interval does contain 0. The mean IAT score of women (-0.25) is not significantly higher than the mean IAT score of men (-0.28).
+
+# Hypothesis 2: BFI sub-scales each predict IAT scores
+
+## Statistical regressions
+
+A series of regressions are run to test the hypothesis that each BFI sub-scale predicts IAT scores.
+
+### Regression: IAT and Extroversion scale
+
+```{r}
+regression_IAT_extroversion <- lm(D ~ mean_extroversion, data = data_processed_after_exclusions)
+
+report(regression_IAT_extroversion)
+```
+
+### Regression: IAT and Agreeableness scale
+
+```{r}
+regression_IAT_agreeableness <- lm(D ~ mean_agreeableness, data = data_processed_after_exclusions)
+
+report(regression_IAT_agreeableness)
+```
+
+### Regression: IAT and Openness scale
+
+```{r}
+regression_IAT_openness <- lm(D ~ mean_openness, data = data_processed_after_exclusions)
+
+report(regression_IAT_openness)
+```
+
+### Regression: IAT and Conscientiousness scale
+
+```{r}
+regression_IAT_conscientiousness <- lm(D ~ mean_conscientiousness, data = data_processed_after_exclusions)
+
+report(regression_IAT_conscientiousness)
+```
+
+### Regression: IAT and Neuroticism scale
+
+```{r}
+regression_IAT_neuroticism <- lm(D ~ mean_neuroticism, data = data_processed_after_exclusions)
+
+report(regression_IAT_neuroticism)
+```
+
+## Scatter plots
+
+A series of scatter plots are created to show how the BFI sub-scale scores predict IAT scores including regression lines.
+
+### Plot: IAT and Extroversion scale
+
+```{r}
+# New column to identify extreme scores
+data_processed_after_exclusions_H2 <- data_processed_after_exclusions %>%
+  mutate(extreme_IAT = ifelse(D > quantile(D, 0.9) | D < quantile(D, 0.1), "Extreme", "Not Extreme"))
+
+
+# IAT score as dependent variable
+plot_IAT_extroversion <- ggplot(data_processed_after_exclusions_H2, 
+       aes(y = D, 
+           x = mean_extroversion)) +
+  geom_jitter(aes(shape = extreme_IAT), 
+              color = viridis_pal(begin = 0.45, option = "mako")(1), 
+              alpha = 0.6) +
+  geom_smooth(method = "lm", 
+              color = viridis_pal(begin = 0.2, option = "mako")(1)) +
+  scale_y_continuous(name = "IAT score (D)",
+                     breaks = seq(-2, 2, 1),
+                     limits = c(-2, 2)) +
+  scale_x_continuous(name = "Mean extroversion score",
+                     breaks = seq(1, 6, 1), 
+                     limits = c(1, 6)) +
+  scale_shape_manual(values = c(17, 16),
+                     name = "Extreme IAT score",
+                     labels = c("Extreme", "Not Extreme")) + 
+  theme_linedraw() +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7))
+
+plot_IAT_extroversion
+```
+
+### Plot: IAT and Agreeableness scale
+
+```{r}
+# IAT score as dependent variable
+plot_IAT_agreeableness <- ggplot(data_processed_after_exclusions_H2, 
+       aes(y = D, 
+           x = mean_agreeableness)) +
+  geom_jitter(aes(shape = extreme_IAT), 
+              color = viridis_pal(begin = 0.45, option = "mako")(1), 
+              alpha = 0.6) +
+  geom_smooth(method = "lm", 
+              color = viridis_pal(begin = 0.2, option = "mako")(1)) +
+  scale_y_continuous(name = "IAT score (D)",
+                     breaks = seq(-2, 2, 1),
+                     limits = c(-2, 2)) +
+  scale_x_continuous(name = "Mean agreeableness score",
+                     breaks = seq(1, 6, 1), 
+                     limits = c(1, 6)) +
+  scale_shape_manual(values = c(17, 16),
+                     name = "Extreme IAT score",
+                     labels = c("Extreme", "Not Extreme")) + 
+  theme_linedraw() +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7))
+
+plot_IAT_agreeableness
+```
+
+### Plot: IAT and Openness scale
+
+```{r}
+# IAT score as dependent variable
+plot_IAT_openness <- ggplot(data_processed_after_exclusions_H2, 
+       aes(y = D, 
+           x = mean_openness)) +
+  geom_jitter(aes(shape = extreme_IAT), 
+              color = viridis_pal(begin = 0.45, option = "mako")(1), 
+              alpha = 0.6) +
+  geom_smooth(method = "lm", 
+              color = viridis_pal(begin = 0.2, option = "mako")(1)) +
+  scale_y_continuous(name = "IAT score (D)",
+                     breaks = seq(-2, 2, 1),
+                     limits = c(-2, 2)) +
+  scale_x_continuous(name = "Mean openness score",
+                     breaks = seq(1, 6, 1), 
+                     limits = c(1, 6)) +
+  scale_shape_manual(values = c(17, 16),
+                     name = "Extreme IAT score",
+                     labels = c("Extreme", "Not Extreme")) + 
+  theme_linedraw() +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7))
+
+plot_IAT_openness
+```
+
+### Plot: IAT and Conscientiousness scale
+
+```{r}
+# IAT score as dependent variable
+plot_IAT_conscientiousness <- ggplot(data_processed_after_exclusions_H2, 
+       aes(y = D, 
+           x = mean_conscientiousness)) +
+  geom_jitter(aes(shape = extreme_IAT), 
+              color = viridis_pal(begin = 0.45, option = "mako")(1), 
+              alpha = 0.6) +
+  geom_smooth(method = "lm", 
+              color = viridis_pal(begin = 0.2, option = "mako")(1)) +
+  scale_y_continuous(name = "IAT score (D)",
+                     breaks = seq(-2, 2, 1),
+                     limits = c(-2, 2)) +
+  scale_x_continuous(name = "Mean conscientiousness score",
+                     breaks = seq(1, 6, 1), 
+                     limits = c(1, 6)) +
+  scale_shape_manual(values = c(17, 16),
+                     name = "Extreme IAT score",
+                     labels = c("Extreme", "Not Extreme")) + 
+  theme_linedraw() +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7))
+
+plot_IAT_conscientiousness
+```
+
+### Plot: IAT and Neuroticism scale
+
+```{r}
+# IAT score as dependent variable
+plot_IAT_neuroticism <- ggplot(data_processed_after_exclusions_H2, 
+       aes(y = D, 
+           x = mean_neuroticism)) +
+  geom_jitter(aes(shape = extreme_IAT), 
+              color = viridis_pal(begin = 0.45, option = "mako")(1), 
+              alpha = 0.6) +
+  geom_smooth(method = "lm", 
+              color = viridis_pal(begin = 0.2, option = "mako")(1)) +
+  scale_y_continuous(name = "IAT score (D)",
+                     breaks = seq(-2, 2, 1),
+                     limits = c(-2, 2)) +
+  scale_x_continuous(name = "Mean neuroticism score",
+                     breaks = seq(1, 6, 1), 
+                     limits = c(1, 6)) +
+  scale_shape_manual(values = c(17, 16),
+                     name = "Extreme IAT score",
+                     labels = c("Extreme", "Not Extreme")) + 
+  theme_linedraw() +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 7))
+
+plot_IAT_neuroticism
+```
+
+### Combined plot
+
+These separate scatter plots are combined into a single ggplot object.
+
+```{r}
+combined_plot_IAT_BFI <- plot_IAT_extroversion + plot_IAT_agreeableness + plot_IAT_openness + plot_IAT_conscientiousness + plot_IAT_neuroticism + plot_layout(ncol = 2) + plot_annotation(title = "Prediction of IAT scores from BFI subscales")
+
+combined_plot_IAT_BFI
+```
+
+#### Saving plot
+
+Saving of the combined ggplot object to disk as .pdf and .png in the "communications" folder.
+
+```{r}
+ggsave(filename = "combined_plot_IAT_BFI.pdf", plot = combined_plot_IAT_BFI, path = "../communications")
+ggsave(filename = "combined_plot_IAT_BFI.png", plot = combined_plot_IAT_BFI, path = "../communications")
+```
+
+# Session info
+
+```{r}
+session_info()
+```
