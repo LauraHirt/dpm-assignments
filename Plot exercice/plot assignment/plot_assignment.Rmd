@@ -1,0 +1,259 @@
+---
+title: "Plot assignment"
+author: "Template: Ian Hussey; content: Laura Hirt"
+date: "2023-12-19"
+output:
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    theme: flatly
+    toc: yes
+    toc_float: yes
+---
+
+```{r, include=FALSE}
+
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+```
+
+# Dependencies
+
+```{r}
+# Only those that are needed!
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(janitor)
+library(scales)
+library(ggExtra)
+library(ggrepel)
+remotes::install_github("hughjonesd/ggmagnify")
+library(ggmagnify)
+library(devtools)
+devtools::install_github("psyteachr/introdataviz")
+library(introdataviz)
+library(survival)
+library(lattice)
+library(Hmisc)
+library(report)
+devtools::install_github("thomasp85/patchwork")
+library(patchwork)
+library(psych)
+```
+
+# Instructions
+
+The goal of this exercise is to produce both good and bad examples of plots *and to be explicit about what makes them good or bad*.
+
+The data can be real or fabricated. The plots can convey realistic or silly messages - but they must convey them clearly. You can get real data from many sources. A good one is the open science framework (osf.io). You can also simply make up data, either by hand or using simulation functions (e.g., `rnorm`) or the many simulation packages. If simulating data, ensure that you (a) use set.seed() to make it reproducible, and (b) save a copy of the final data that you're using to disk and then reload it in the script so that the plot is reproducible.
+
+The goal is neither to reproduce the types of plots that you most often see in journals (bar plots, etc.) nor to use a very fancy looking plot just for the sake of it - if it is very unlikely that you'd ever be able to use the plot to convey a research finding in an article, blog, poster, tweet, infographic or otherwise, it's probably not a good choice either.
+
+The plots must be reproducible. Provide the data as well as the code to reproduce them. The plots should also be saved as individual images (pdf or png).
+
+Under each plot, here in the RMarkdown, briefly explain what types of analysis the plot is suitable for, what elements of the results the plot attempts to clearly convey. For the bad plot, do the opposite: emphasise what features of the results the plot obscures or makes unclear. In doing so, communicate to me that you understand what makes a good plot to convey the results of quantitative analyses to viewers.
+
+Consider making use of the many extensions to ggplot2, e.g.:
+
+-   <https://r-graph-gallery.com>
+-   <https://krzjoa.github.io/awesome-r-dataviz/#/>
+-   ggdist <https://mjskay.github.io/ggdist/>
+-   ggrepel
+-   ggpubr
+-   see
+-   ggsignif
+-   and others: <https://exts.ggplot2.tidyverse.org/gallery/>
+
+Possible data sources
+
+-   osf.io
+
+-   AIID dataset: <https://osf.io/pcjwf/> big five personality data
+
+# Get Data
+
+This data set originates from the DATA.GOV website and is operated by the publisher data.lacity.org. It reflects incidents of crime in the City of Los Angeles dating back to 2020 (last update: December 2, 2023). The data is transcribed from original crime reports that are typed on paper and therefore there may be some inaccuracies within the data. The codebook and manual are provided so that you can decode the various coded entries yourself, although these are not important for the subsequent analysis.
+
+```{r}
+data_crime_raw <- read.csv("Crime_Data_from_2020_to_Present.csv") %>%
+  clean_names()
+```
+
+# Exclusions / data quality
+
+In the following analysis, I will focus exclusively on the distribution of the ages of murder victims (crm_cd 110 = homicide), divided by gender (man = "M" and woman = "F"). The other variables are therefore no longer required. When examining the age variable of the victims, it is noticeable that negative values (probably: "not specified / not known") and the value 0 (probably: "missing value") exist, which must be excluded from the analysis in order not to falsely distort the age distribution. In the other direction of the age distribution, there are also values of over 100 and the value 99. Although this age of a victim can of course be plausible, it often happens that missing information is attributed the value 99, which is why only persons aged 1 to 98 are considered below.
+
+```{r}
+data_crime <- data_crime_raw %>%
+  select(crm_cd, vict_age, vict_sex) %>%
+  rename(gender = vict_sex,
+         age = vict_age,
+         code = crm_cd) %>%
+  filter(gender %in% c("M", "F")) %>%
+  filter(code == 110) %>%
+  select(- code) %>%
+  filter(age >= 1 & age <= 98) 
+
+# Add cases per gender
+cases_summary <- data_crime %>%
+                 group_by(gender) %>%
+                 summarise(cases = n(), .groups = 'drop')
+```
+
+# Good plot
+
+```{r}
+rain_height <- .1
+
+plot_good <- ggplot(data_crime, aes(x = "", y = age, fill = gender)) +
+  # clouds
+  introdataviz::geom_flat_violin(trim=FALSE, alpha = 0.4,
+    position = position_nudge(x = rain_height+.05)) +
+  # rain
+  geom_point(aes(colour = gender), size = 2, alpha = .5, show.legend = FALSE, 
+              position = position_jitter(width = rain_height, height = 0)) +
+  # boxplots
+  geom_boxplot(width = rain_height, alpha = 0.4, show.legend = FALSE, 
+               outlier.shape = NA,
+               position = position_nudge(x = -rain_height*2)) +
+  # mean and SE point in the cloud
+  stat_summary(fun.data = mean_cl_normal, mapping = aes(color = gender), show.legend = FALSE,
+               position = position_nudge(x = rain_height * 3)) +
+  # Add annotations for the number of cases
+  geom_text(data = cases_summary, 
+            aes(label = paste("n =", cases), y = 89, x = ""),
+            hjust = 0, vjust = 0,
+            na.rm = TRUE) + 
+  # adjust layout
+  scale_x_discrete(name = "", expand = c(rain_height*3, 0, 0, 0.7)) +
+  scale_y_continuous(name = "age",
+                     breaks = seq(1, 100, 4), 
+                     limits = c(1, 100)) +
+  coord_flip() +
+  facet_wrap(~factor(gender, 
+                     levels = c("F", "M"), 
+                     labels = c("Female", "Male")),
+             nrow = 2) +
+  # custom colours and theme
+  scale_fill_brewer(palette = "Dark2", name = "Gender") +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_minimal() +
+  ggtitle("Age distribution of homicide victims in LA (2020-2023)") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "none",
+        strip.text = element_text(size = 10, face = "bold"),
+        plot.title = element_text(hjust = 0.5, size = 14))
+
+plot_good
+```
+
+## What makes the plot so good?
+
+I chose to use a raincloud plot to visualize the age distribution of homicide victims according to gender. This plot is ideal for comparative analysis of metric variables. It's suitable for identifying patterns, differences, or similarities in distribution across groups.
+
+### 1. Data Representation
+
+As this plot combines elements of a violin plot, box plot, and scatter plot (jitter plot), this creates a rich, multilayered view of the data, conveying the most relevant insights of the data without being overloaded.
+
+1.  The **violin plot** component creates a flat violin plot, showing the density distribution of ages for each gender. It helps to understand how the age distribution is concentrated or spread out.
+
+2.  The **jitter plot** component adds individual data points, providing a granular look at the data distribution and highlighting individual variations.
+
+3.  The **box plot** component offers a summary view of the data, showing the median, quartiles, range, and possible outliers for the age distribution of each gender.
+
+4.  The **summary statistics** add mean and standard error points to give a quick statistical overview.
+
+5.  The **faceting** splits the plot into separate panels for both genders, making comparisons easier.
+
+### 2. Aesthetics, readability, and legibility
+
+-   **Color Coding**: The use of distinct colors for each gender enhances the plot's readability and helps in differentiating data groups.
+
+-   **Annotations for Additional Information**: The inclusion of annotations (number of cases per gender) adds valuable context to the data.
+
+-   **Clear Title and Axis Labels**: The title "Age distribution of homicide victims in LA (2020-2023)" is informative and sets clear expectations for the plot's content. The y-axis is appropriately labeled as "age", and the facet labels clearly indicate the gender.
+
+-   **Theme and Style**: The minimal theme keeps the focus on the data, and the bold facet labels are easily readable.
+
+-   **Appropriate Sizing**: Elements like text size and point size are balanced to ensure the plot is legible without being cluttered.
+
+-   **Grid and Legend**: The removal of unnecessary grid lines and legends avoids distraction, focusing attention on the data.
+
+# Bad plot
+
+```{r}
+plot_bad <- ggplot(data_crime, aes(x = age, y = gender, color = gender)) +
+  geom_point(alpha = 1, size = 10) +
+  geom_line() +
+  scale_colour_manual(values = c("black", "black")) +
+  theme_minimal() +
+  theme(
+    plot.background = element_rect(fill = "yellow"),
+    panel.background = element_rect(fill = "pink"),
+    text = element_text(size = 3, color = "red"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(angle = 90),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.position = "top",
+    legend.background = element_rect(fill = "green"),
+    legend.text = element_text(size = 15, color = "blue")) 
+
+plot_bad
+```
+
+## What makes the plot so bad?
+
+The plot contains several elements that make it ineffective and obscure important features of the data.
+
+### **1. Inappropriate Use of Geoms**
+
+-   **Overlapping Points**: Using geom_point with a large size (size = 10) causes the points to overlap significantly. This obscures individual data points and makes it difficult to discern the underlying distribution or count specific data points.
+
+-   **Misuse of geom_line**: Applying geom_line on a categorical variable (gender) is misleading. Lines suggest a continuous relationship or trend, which is inappropriate for categorical data and can mislead viewers.
+
+### 2. Color Scheme Issues
+
+-   **Monochromatic Color for Different Categories**: Using the same color ("black") for different genders eliminates the ability to distinguish between them visually. This defeats the purpose of color coding in categorial data representation.
+
+-   **Background and Text Colors**: The bright yellow and pink background colors are jarring and distracting, drawing attention away from the data. Additionally, using small, red text (size = 3) reduces readability.
+
+### **3. Poor Text and Legend Management**:
+
+-   **Small Text Size**: Setting a very small text size makes axis labels and other text elements difficult to read.
+
+-   **Axis Text Orientation**: The x-axis labels and y-axis labels are rotated (angle = 45 and 90), which, combined with the small text size, makes them even harder to read.
+
+-   **Lack of Axis Titles**: Removing axis titles (element_blank()) deprives the viewer of essential context about what the axes represent.
+
+-   **Distracting Legend Style**: The large, blue text in the legend on a green background is visually unappealing and inconsistent with the rest of the plot's aesthetics.
+
+### **4. Overall Design Choices:**
+
+-   **Lack of Clear Focus**: The combination of these elements results in a plot that lacks a clear focus and makes it challenging to extract meaningful insights from the data.
+
+-   **Aesthetic Overload**: The use of multiple bright and clashing colors, along with large text in the legend and small text elsewhere, creates an overwhelming and confusing visual experience.
+
+# Write to disk
+
+Write to disk as a .pdf or .png.
+
+Name them "plot_good\_[yourname]" and "plot_bad\_[yourname]".
+
+```{r}
+ggsave(filename = "plot_good_Laura_Hirt.pdf", plot = plot_good, path = "../plot assignment")
+ggsave(filename = "plot_bad_Laura_Hirt.pdf", plot = plot_bad, path = "../plot assignment")
+```
+
+# Session info
+
+```{r}
+
+sessionInfo()
+
+```
